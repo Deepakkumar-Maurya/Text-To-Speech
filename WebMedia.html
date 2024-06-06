@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
+  </head>
+  <body>
+    <button id="btn">Start</button>
+    <p>
+      Web Real-Time Communications – WebRTC in short – is an HTML5 specification
+      that allows you to communicate in real-time directly between browsers
+      without any third-party plugins. WebRTC can be used for multiple tasks
+      (even file sharing) but real-time peer-to-peer audio and video
+      communication is obviously the primary feature and we will focus on those
+      in this article. Hello World! I am Deepak This module allows you to spawn
+      child processes, which can be useful for running CPU-intensive tasks or
+      external commands without blocking the main Node.js process
+    </p>
+  </body>
+  <script>
+    const btn = document.getElementById("btn");
+    let voice = [];
+
+    btn.addEventListener(
+      "click",
+      () => {
+        const voiceId = "21m00Tcm4TlvDq8ikWAM"; // replace with your voice_id
+        const model = "eleven_turbo_v2";
+        const wsUrl = `wss://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream-input?model_id=${model}`;
+        const socket = new WebSocket(wsUrl);
+        let flag = false;
+
+        // 2. Initialize the connection by sending the BOS message
+        socket.onopen = function (event) {
+          const bosMessage = {
+            text: " ",
+            voice_settings: {
+              stability: 0.5,
+              similarity_boost: 0.8,
+            },
+            xi_api_key: "", // replace with your API key
+          };
+
+          socket.send(JSON.stringify(bosMessage));
+
+          // 3. Send the input text message ("Hello World")
+          const textMessage = {
+            text: "Web Real-Time Communications – WebRTC in short – is an HTML5 specification that allows you to communicate in real-time directly between browsers without any third-party plugins. WebRTC can be used for multiple tasks (even file sharing) but real-time peer-to-peer audio and video communication is obviously the primary feature and we will focus on those in this article. Hello World! I am Deepak This module allows you to spawn child processes, which can be useful for running CPU-intensive tasks or external commands without blocking the main Node.js process",
+            try_trigger_generation: true,
+          };
+
+          socket.send(JSON.stringify(textMessage));
+
+          // 4. Send the EOS message with an empty string
+          const eosMessage = {
+            text: "",
+          };
+
+          socket.send(JSON.stringify(eosMessage));
+        };
+
+        const audioChunks = []; // Array to store audio chunks
+        let mediaSource; // MediaSource object
+        let sourceBuffer; // SourceBuffer object
+
+        const audioElement = document.createElement("audio");
+        audioElement.controls = true;
+        document.body.appendChild(audioElement);
+
+        // Function to handle WebSocket message
+        function handleWebSocketMessage(event) {
+          const response = JSON.parse(event.data);
+          if (response.audio) {
+            audioChunks.push(response.audio);
+            appendAudioChunks();
+          } else {
+            console.log("No audio data in the response");
+          }
+          if (response.isFinal) {
+            // Handle finalization if needed
+          }
+          if (response.normalizedAlignment) {
+            // Handle alignment info if needed
+          }
+        }
+
+        // Function to append audio chunks to SourceBuffer
+        function appendAudioChunks() {
+          if (
+            mediaSource.readyState === "open" &&
+            sourceBuffer &&
+            !sourceBuffer.updating
+          ) {
+            const chunk = audioChunks.shift(); // Take the first chunk and remove it from the array
+            const arrayBuffer = base64ToArrayBuffer(chunk);
+            sourceBuffer.appendBuffer(arrayBuffer);
+          }
+        }
+
+        // Function to convert Base64 to ArrayBuffer
+        function base64ToArrayBuffer(base64) {
+          const binaryString = atob(base64);
+          const length = binaryString.length;
+          const buffer = new ArrayBuffer(length);
+          const view = new Uint8Array(buffer);
+          for (let i = 0; i < length; i++) {
+            view[i] = binaryString.charCodeAt(i);
+          }
+          return buffer;
+        }
+
+        socket.onmessage = handleWebSocketMessage;
+
+        // MediaSource setup
+        mediaSource = new MediaSource();
+        mediaSource.addEventListener("sourceopen", () => {
+          sourceBuffer = mediaSource.addSourceBuffer("audio/mpeg");
+          sourceBuffer.mode = "sequence"; // Set mode to sequence for continuous playback
+          sourceBuffer.addEventListener("updateend", () => {
+            appendAudioChunks(); // Append more chunks when previous append is complete
+          });
+        });
+
+        // Set audio element source
+        audioElement.src = URL.createObjectURL(mediaSource);
+
+        // Play audio when ready
+        audioElement.addEventListener("loadedmetadata", () => {
+          audioElement
+            .play()
+            .catch((error) => console.error("Error playing audio:", error));
+        });
+
+        // ------------------------------------
+        // Handle errors
+        socket.onerror = function (error) {
+          console.error(`WebSocket Error: ${error}`);
+        };
+
+        // Handle socket closing
+        socket.onclose = function (event) {
+          if (event.wasClean) {
+            console.info(
+              `Connection closed cleanly, code=${event.code}, reason=${event.reason}`
+            );
+          } else {
+            console.warn("Connection died");
+          }
+        };
+      },
+      false
+    );
+  </script>
+</html>
